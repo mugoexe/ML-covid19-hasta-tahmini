@@ -14,7 +14,7 @@ Sistem, **Makine Öğrenmesi (ML)** ve **Kural Tabanlı (Rule-Based)** yaklaşı
 * 📈 ML model karşılaştırması (Logistic Regression, Random Forest, XGBoost)
 * 🔍 Confusion Matrix ve model performans analizi
 * 🧑‍⚕️ AI destekli yorum sistemi
-* 🌙 Modern Streamlit arayüzü
+* 🌙 STREAMLİT ARAYÜZÜ
 
 ---
 
@@ -78,6 +78,7 @@ pip install -r requirements.txt
 ### 2. Uygulamayı çalıştır
 
 ```
+terminale dosya yoluyla girip şunu yazmak
 streamlit run app.py
 ```
 
