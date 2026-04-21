@@ -2,9 +2,9 @@ import streamlit as st
 import numpy as np
 import joblib
 
-# =========================
+
 # YÜKLE
-# =========================
+
 model = joblib.load("model.pkl")
 feature_names = joblib.load("features.pkl")
 scaler = joblib.load("scaler.pkl")
@@ -14,9 +14,9 @@ st.set_page_config(page_title="COVID Risk Sistemi", layout="centered")
 st.title("🦠 COVID Risk Analizi (Hybrid AI)")
 st.markdown("Belirtileri seç, sistem riskini hesaplasın")
 
-# =========================
+
 # INPUT
-# =========================
+
 st.markdown("## 🧾 Belirtiler")
 
 fever = st.checkbox("Ateş")
@@ -43,9 +43,9 @@ gender_male = st.checkbox("Erkek")
 contact_yes = st.checkbox("COVID temas var")
 contact_unknown = st.checkbox("Temas bilinmiyor")
 
-# =========================
-# FEATURE DICT (KRAL KISIM)
-# =========================
+
+# FEATURE DICT 
+
 input_dict = {
     "Fever": fever,
     "Tiredness": tiredness,
@@ -71,9 +71,9 @@ input_dict = {
     "Contact_No": 0
 }
 
-# =========================
+
 # BUTON
-# =========================
+
 if st.button("🚀 Tahmin Et"):
 
     # FEATURE ARRAY (SIRALI)
@@ -105,9 +105,9 @@ if st.button("🚀 Tahmin Et"):
     critical_case = difficulty_breathing and fever
     rule_risk = symptom_count * 10
 
-    # =========================
+    
     # HYBRID
-    # =========================
+    
     final_risk = 0.6 * ml_risk + 0.4 * rule_risk
 
     # HARD RULES
@@ -121,9 +121,9 @@ if st.button("🚀 Tahmin Et"):
 
     final_risk = min(final_risk, 100)
 
-    # =========================
+   
     # UI
-    # =========================
+   
     st.markdown("## 📊 Sonuç")
 
     st.progress(int(final_risk))
@@ -136,9 +136,9 @@ if st.button("🚀 Tahmin Et"):
     else:
         st.success("✅ Düşük Risk")
 
-    # =========================
+   
     # DETAY
-    # =========================
+   
     st.markdown("## 🔍 Analiz")
 
     col1, col2, col3 = st.columns(3)
@@ -146,18 +146,18 @@ if st.button("🚀 Tahmin Et"):
     col2.metric("Kural", f"%{rule_risk:.1f}")
     col3.metric("Semptom", symptom_count)
 
-    # =========================
+   
     # UYARILAR
-    # =========================
+  
     if symptom_count >= 6:
         st.warning("📌 Çok fazla semptom var")
 
     if critical_case:
         st.error("⚠️ Kritik durum: Nefes darlığı")
 
-    # =========================
+  
     # AI YORUM
-    # =========================
+  
     st.markdown("## 🧠 AI Doktor Yorumu")
 
     if final_risk > 85:
