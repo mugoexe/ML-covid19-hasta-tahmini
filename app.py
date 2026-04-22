@@ -339,7 +339,7 @@ st.write("Bu proje **Muharrem Ünal** tarafından geliştirilmiştir.")
 
 st.markdown("""
 🔗 GitHub: https://github.com/mugoexe  
-📸 Instagram: https://instagram.com/mugoexe  
+📸 Instagram: https://instagram.com/print.mugo  
 """)
 
 # =========================
