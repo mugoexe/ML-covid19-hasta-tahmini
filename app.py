@@ -1,175 +1,348 @@
 import streamlit as st
 import numpy as np
 import joblib
+import matplotlib.pyplot as plt
 
-
-# YÜKLE
-
+# =========================
+# LOAD
+# =========================
 model = joblib.load("model.pkl")
-feature_names = joblib.load("features.pkl")
+features = joblib.load("features.pkl")
 scaler = joblib.load("scaler.pkl")
 
-st.set_page_config(page_title="COVID Risk Sistemi", layout="centered")
+st.set_page_config(page_title="COVID AI", layout="centered")
 
-st.title("🦠 COVID Risk Analizi (Hybrid AI)")
-st.markdown("Belirtileri seç, sistem riskini hesaplasın")
+# =========================
+# 👤 KULLANICI BİLGİLERİ
+# =========================
+st.markdown("## 👤 Kişisel Bilgiler")
 
+col1, col2 = st.columns(2)
 
-# INPUT
+with col1:
+    age = st.slider("Yaş", 0, 100, 25)
 
-st.markdown("## 🧾 Belirtiler")
+with col2:
+    gender = st.radio(
+        "Cinsiyet",
+        ["Erkek", "Kadın", "Diğer"],
+        horizontal=True
+    )
+# =========================
+# 🤒 SEMPTOM GİRİŞLERİ (Eksik Olan Kısım)
+# =========================
+st.markdown("## 🤒 Belirtiler")
 
 fever = st.checkbox("Ateş")
 tiredness = st.checkbox("Yorgunluk")
-dry_cough = st.checkbox("Kuru öksürük")
-difficulty_breathing = st.checkbox("Nefes darlığı")
-sore_throat = st.checkbox("Boğaz ağrısı")
-pains = st.checkbox("Ağrılar")
-nasal_congestion = st.checkbox("Burun tıkanıklığı")
-runny_nose = st.checkbox("Burun akması")
+dry_cough = st.checkbox("Kuru Öksürük")
+difficulty_breathing = st.checkbox("Nefes Darlığı")
+sore_throat = st.checkbox("Boğaz Ağrısı")
+pains = st.checkbox("Vücut Ağrıları")
+nasal_congestion = st.checkbox("Burun Tıkanıklığı")
+runny_nose = st.checkbox("Burun Akıntısı")
 diarrhea = st.checkbox("İshal")
+# =========================
+# 🔄 AGE ONE-HOT
+# =========================
+age_0_9 = 1 if age <= 9 else 0
+age_10_19 = 1 if 10 <= age <= 19 else 0
+age_20_24 = 1 if 20 <= age <= 24 else 0
+age_25_59 = 1 if 25 <= age <= 59 else 0
+age_60_plus = 1 if age >= 60 else 0
 
-st.markdown("## 👤 Ek Bilgiler")
+# =========================
+# 🔄 GENDER ONE-HOT (SAFE)
+# =========================
+gender_male = 1 if gender == "Erkek" else 0
+gender_female = 1 if gender == "Kadın" else 0
 
-age_0_9 = st.checkbox("Yaş 0-9")
-age_10_19 = st.checkbox("Yaş 10-19")
-age_20_24 = st.checkbox("Yaş 20-24")
-age_25_59 = st.checkbox("Yaş 25-59")
-age_60_plus = st.checkbox("60+ yaş")
+# güvenlik (asla 2 tane 1 olmasın)
+if gender_male + gender_female > 1:
+    st.error("⚠️ Cinsiyet seçiminde hata")
+    st.stop()
 
-gender_female = st.checkbox("Kadın")
-gender_male = st.checkbox("Erkek")
+# =========================
+# INPUT KONTROL
+# =========================
+if not any([fever, tiredness, dry_cough, difficulty_breathing,
+            sore_throat, pains, nasal_congestion,
+            runny_nose, diarrhea]):
+    st.warning("⚠️ Lütfen en az bir semptom seç")
+    st.stop()
 
-contact_yes = st.checkbox("COVID temas var")
-contact_unknown = st.checkbox("Temas bilinmiyor")
-
-
-# FEATURE DICT 
-
+# =========================
+# FEATURE MAP
+# =========================
 input_dict = {
-    "Fever": fever,
-    "Tiredness": tiredness,
-    "Dry-Cough": dry_cough,
-    "Difficulty-in-Breathing": difficulty_breathing,
-    "Sore-Throat": sore_throat,
-    "Pains": pains,
-    "Nasal-Congestion": nasal_congestion,
-    "Runny-Nose": runny_nose,
-    "Diarrhea": diarrhea,
-
+    "Fever": int(fever),
+    "Tiredness": int(tiredness),
+    "Dry-Cough": int(dry_cough),
+    "Difficulty-in-Breathing": int(difficulty_breathing),
+    "Sore-Throat": int(sore_throat),
+    "Pains": int(pains),
+    "Nasal-Congestion": int(nasal_congestion),
+    "Runny-Nose": int(runny_nose),
+    "Diarrhea": int(diarrhea),
     "Age_0-9": age_0_9,
     "Age_10-19": age_10_19,
     "Age_20-24": age_20_24,
     "Age_25-59": age_25_59,
-    "Age_60+": age_60_plus,
-
-    "Gender_Female": gender_female,
+    "Age_60_plus": age_60_plus,
     "Gender_Male": gender_male,
-
-    "Contact_Yes": contact_yes,
-    "Contact_DontKnow": contact_unknown,
-    "Contact_No": 0
+    "Gender_Female": gender_female
 }
 
+# eksikleri otomatik 0 yap
+X = np.array([[input_dict.get(col, 0) for col in features]])
 
-# BUTON
+try:
+    X_scaled = scaler.transform(X)
+    proba = model.predict_proba(X_scaled)[0][1]
+except:
+    proba = model.predict_proba(X)[0][1]
 
-if st.button("🚀 Tahmin Et"):
+ml_risk = proba * 100
 
-    # FEATURE ARRAY (SIRALI)
-    X = np.array([[input_dict.get(col, 0) for col in feature_names]])
+# =========================
+# RULE BASED
+# =========================
+symptom_count = sum(input_dict.values())
+critical_case = difficulty_breathing and fever
 
-    # SCALER (eğer LogisticRegression seçilmişse işe yarar)
-    try:
-        X_scaled = scaler.transform(X)
-    except:
-        X_scaled = X
+rule_risk = symptom_count * 10
 
-    # MODEL
-    try:
-        proba = model.predict_proba(X_scaled)[0][1]
-    except:
-        proba = model.predict_proba(X)[0][1]
+# =========================
+# HYBRID
+# =========================
+final_risk = 0.6 * ml_risk + 0.4 * rule_risk
 
-    ml_risk = proba * 100
+if symptom_count >= 7:
+    final_risk = max(final_risk, 90)
+elif symptom_count >= 5:
+    final_risk = max(final_risk, 75)
 
-    # =========================
-    # RULE BASED
-    # =========================
-    symptom_count = sum([
-        fever, tiredness, dry_cough, difficulty_breathing,
-        sore_throat, pains, nasal_congestion,
-        runny_nose, diarrhea
-    ])
+if critical_case:
+    final_risk = max(final_risk, 95)
 
-    critical_case = difficulty_breathing and fever
-    rule_risk = symptom_count * 10
+final_risk = min(final_risk, 100)
 
-    
-    # HYBRID
-    
-    final_risk = 0.6 * ml_risk + 0.4 * rule_risk
+# =========================
+# RISK BAR
+# =========================
+st.markdown("## 📊 Risk Sonucu")
 
-    # HARD RULES
-    if symptom_count >= 7:
-        final_risk = max(final_risk, 90)
-    elif symptom_count >= 5:
-        final_risk = max(final_risk, 75)
+st.progress(int(final_risk))
+st.markdown(f"### 🔥 Risk Skoru: %{final_risk:.1f}")
 
-    if critical_case:
-        final_risk = max(final_risk, 95)
+if final_risk > 85:
+    st.error("🚨 Yüksek Risk")
+elif final_risk > 60:
+    st.warning("⚠️ Orta Risk")
+else:
+    st.success("✅ Düşük Risk")
 
-    final_risk = min(final_risk, 100)
+# =========================
+# GRAFİK
+# =========================
+st.markdown("## 📈 Risk Dağılımı")
 
-   
-    # UI
-   
-    st.markdown("## 📊 Sonuç")
+fig, ax = plt.subplots()
+ax.bar(["ML", "Rule"], [ml_risk, rule_risk])
+ax.set_title("Risk Kaynakları")
+st.pyplot(fig)
 
-    st.progress(int(final_risk))
-    st.markdown(f"### Risk Skoru: %{final_risk:.1f}")
+# =========================
+# BREAKDOWN
+# =========================
+st.markdown("## 🔍 Belirti Etkisi")
 
-    if final_risk > 85:
-        st.error("🚨 Yüksek Risk! COVID ihtimali çok yüksek.")
-    elif final_risk > 60:
-        st.warning("⚠️ Orta Risk")
-    else:
-        st.success("✅ Düşük Risk")
+for k, v in input_dict.items():
+    if v == 1:
+        st.write(f"✔ {k}")
 
-   
-    # DETAY
-   
-    st.markdown("## 🔍 Analiz")
+# =========================
+# ANALİZ
+# =========================
+st.markdown("## 🧠 Detay")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("ML", f"%{ml_risk:.1f}")
-    col2.metric("Kural", f"%{rule_risk:.1f}")
-    col3.metric("Semptom", symptom_count)
+col1, col2, col3 = st.columns(3)
+col1.metric("ML", f"%{ml_risk:.1f}")
+col2.metric("Rule", f"%{rule_risk:.1f}")
+col3.metric("Semptom", symptom_count)
 
-   
-    # UYARILAR
-  
-    if symptom_count >= 6:
-        st.warning("📌 Çok fazla semptom var")
+# =========================
+# YORUM
+# =========================
+st.markdown("## 🤖 AI Doktor Analizi")
 
-    if critical_case:
-        st.error("⚠️ Kritik durum: Nefes darlığı")
+messages = []
+risk_factors = []
+advice_list = []
 
-  
-    # AI YORUM
-  
-    st.markdown("## 🧠 AI Doktor Yorumu")
+# =========================
+# 🔥 KRİTİK BELİRTİ ANALİZİ
+# =========================
+if difficulty_breathing:
+    messages.append("⚠️ Nefes darlığı ciddi bir solunum problemi göstergesidir.")
+    risk_factors.append("Nefes darlığı")
 
-    if final_risk > 85:
-        st.info("🚨 ACİL: Hastaneye git")
-    elif critical_case:
-        st.info("⚠️ Doktora görün")
-    elif final_risk > 65:
-        st.info("🧪 Test yaptır")
-    elif final_risk > 40:
-        st.info("😷 Dikkatli ol")
-    else:
-        st.info("✅ Sorun yok gibi")
+if fever:
+    messages.append("🌡️ Ateş, vücudun enfeksiyona verdiği tepkidir.")
+    risk_factors.append("Ateş")
 
-    st.markdown("---")
-    st.caption("⚠️ Bu sistem sadece tahmin amaçlıdır.")
+if dry_cough:
+    messages.append("😷 Kuru öksürük COVID-19 ile yaygın olarak ilişkilidir.")
+    risk_factors.append("Kuru öksürük")
+
+if diarrhea:
+    messages.append("🤢 Sindirim sistemi belirtileri de COVID ile ilişkili olabilir.")
+    risk_factors.append("Sindirim belirtisi")
+
+# =========================
+# 🧠 SEMPTOM YOĞUNLUĞU
+# =========================
+if symptom_count >= 7:
+    messages.append("💣 Çok sayıda semptom tespit edildi (yüksek yoğunluk).")
+elif symptom_count >= 5:
+    messages.append("⚠️ Orta-yüksek seviyede semptom yoğunluğu.")
+elif symptom_count >= 3:
+    messages.append("ℹ️ Hafif semptom yoğunluğu.")
+
+# =========================
+# 🧪 RİSK ANALİZİ
+# =========================
+if final_risk > 85:
+    main_comment = "🚨 YÜKSEK RİSK"
+    explanation = "Birden fazla güçlü belirti ve model analizi yüksek olasılığa işaret ediyor."
+    advice_list.append("🏥 En yakın sağlık kuruluşuna başvur")
+    advice_list.append("🧪 COVID testi yaptır")
+    advice_list.append("🚫 Kendini izole et")
+
+elif final_risk > 60:
+    main_comment = "⚠️ ORTA RİSK"
+    explanation = "Bazı güçlü belirtiler mevcut, dikkatli olunmalı."
+    advice_list.append("🧪 Test yaptırman önerilir")
+    advice_list.append("😷 Maske kullan ve sosyal mesafeye dikkat et")
+
+else:
+    main_comment = "✅ DÜŞÜK RİSK"
+    explanation = "Şu an ciddi bir kombinasyon gözükmüyor."
+    advice_list.append("👀 Belirtileri takip et")
+    advice_list.append("💧 Bol sıvı tüket ve dinlen")
+
+# =========================
+# 💣 KRİTİK OVERRIDE
+# =========================
+if critical_case:
+    main_comment = "🚨 KRİTİK DURUM"
+    explanation = "Nefes darlığı + ateş birlikte görüldü."
+    advice_list = [
+        "🚑 ACİL olarak hastaneye git",
+        "🫁 Solunum desteği gerekebilir"
+    ]
+
+# =========================
+# 📊 ML vs RULE YORUM
+# =========================
+if ml_risk > rule_risk + 20:
+    messages.append("🤖 ML modeli bu kombinasyonu riskli olarak değerlendiriyor.")
+elif rule_risk > ml_risk + 20:
+    messages.append("📏 Semptom sayısı riski artırıyor.")
+else:
+    messages.append("⚖️ ML ve kural sistemi benzer sonuç verdi.")
+
+# =========================
+# 🧾 SONUÇ YAZDIR
+# =========================
+st.markdown(f"### {main_comment}")
+st.write(f"🧠 {explanation}")
+
+# 🔍 nedenler
+if risk_factors:
+    st.markdown("### 🔍 Öne Çıkan Risk Faktörleri")
+    for rf in risk_factors:
+        st.write(f"• {rf}")
+
+# 🧠 detaylı analiz
+st.markdown("### 🧠 Detaylı Analiz")
+for msg in messages:
+    st.write(msg)
+
+# 💡 öneriler
+st.markdown("### 💡 Öneriler")
+for adv in advice_list:
+    st.write(f"• {adv}")
+
+# =========================
+# 🎯 EXTRA AKILLI YORUM
+# =========================
+if symptom_count >= 6 and not critical_case:
+    st.warning("📌 Çok sayıda semptom var, dikkatli olunmalı.")
+
+if symptom_count <= 2:
+    st.info("ℹ️ Semptom sayısı düşük, risk sınırlı olabilir.")
+
+# =========================
+# ⚠️ UYARI
+# =========================
+st.caption("⚠️ Bu analiz tıbbi tanı değildir, yalnızca tahmin amaçlıdır.")
+
+# =========================
+# ℹ️ SİSTEM AÇIKLAMASI
+# =========================
+st.markdown("## ℹ️ Sistem Nasıl Çalışır?")
+
+st.info("""
+Bu uygulama, COVID-19 riskini tahmin etmek için geliştirilmiş bir **Hybrid Yapay Zeka sistemidir**.
+
+🔹 Sistem iki ana bileşenden oluşur:
+
+1. 🤖 Makine Öğrenmesi (Machine Learning)
+- Geçmiş veriler üzerinden eğitilmiş model kullanılır
+- Belirtiler arasındaki ilişkileri analiz eder
+- Olasılık bazlı risk tahmini üretir
+
+2. 📏 Kural Tabanlı Sistem (Rule-Based)
+- Semptom sayısı ve şiddeti değerlendirilir
+- Kritik belirtiler (örneğin nefes darlığı) ekstra ağırlık alır
+- Daha mantıklı ve stabil sonuç üretir
+
+🔹 Sonuç:
+👉 Bu iki sistem birleştirilerek (Hybrid AI)
+👉 Daha gerçekçi ve dengeli bir risk skoru elde edilir
+
+📊 Amaç:
+Kullanıcıya hızlı ve anlaşılır bir risk analizi sunmak
+""")
+
+# =========================
+# 🧠 EK BİLGİ 
+# =========================
+st.markdown("### 🧠 Teknik Detay")
+
+st.write("""
+- Model: Logistic Regression / Random Forest / XGBoost
+- Veri: COVID semptom dataseti
+- Feature Engineering uygulanmıştır
+- Data Leakage engellenmiştir
+- Confusion Matrix ile model değerlendirilmiştir
+""")
+
+# =========================
+# 👨‍💻 GELİŞTİRİCİ
+# =========================
+st.markdown("---")
+st.markdown("## 👨‍💻 Geliştirici")
+
+st.write("Bu proje **Muharrem Ünal** tarafından geliştirilmiştir.")
+
+st.markdown("""
+🔗 GitHub: https://github.com/mugoexe  
+📸 Instagram: https://instagram.com/mugoexe  
+""")
+
+# =========================
+# ⚠️ UYARI
+# =========================
+st.caption("⚠️ Bu sistem tıbbi tanı koymaz, sadece tahmin yapar.")
